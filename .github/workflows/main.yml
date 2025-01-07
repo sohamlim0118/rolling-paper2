@@ -1,0 +1,39 @@
+name: Update Docker container on VM
+on:
+  push:
+    branches: [ master ]
+    
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted  # self-hosted GitHub Runner
+    timeout-minutes: 20   # 충분한 시간을 제공
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Login to Docker Hub  # Docker Hub 로그인
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+
+    - name: Build and push Docker image  # Docker 이미지를 빌드하고 push
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        tags: moveho/rolling-paper:latest
+
+    - name: SSH into VM and update Docker container  # SSH로 VM에 접근하여 Docker 컨테이너 업데이트
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: |
+          cd /home/kevin/rolling-paper  # VM에서 실행할 디렉토리로 이동
+          docker-compose down           # 기존 컨테이너 종료
+          docker-compose pull           # 최신 이미지를 pull
+          docker-compose up -d          # 컨테이너 백그라운드 실행
+      timeout: 10m  # 더 긴 타임아웃 설정 (1분에서 10분으로 변경)
